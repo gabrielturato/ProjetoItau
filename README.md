@@ -57,7 +57,7 @@ sequenceDiagram
     participant API as RenegociacaoController
     participant UC as SimularRenegociacaoService
     participant Tok as Tokenização
-    participant Ctr as Contratos (cache 30min)
+    participant Ctr as Contratos
     participant Reg as Regras de negócio
     participant Calc as Calculadora (decorators)
     participant Jor as Jornada (cache 30min)
@@ -131,7 +131,7 @@ CalculadoraComCache (por cliente + motor ativo)        ← 1º: evita recalcular
 
 ### Trocando o cache por banco de dados
 
-`CachePort<K, V>` é genérico e reutilizado para contratos, simulações e jornadas. A jornada é
+`CachePort<K, V>` é genérico e reutilizado para simulações e jornadas. A jornada é
 persistida via `JornadaRepositoryPort`. Para usar banco, basta criar, por exemplo,
 `JornadaJpaRepositoryAdapter implements JornadaRepositoryPort` e trocar o bean em `AdaptadoresConfig`.
 Domínio, casos de uso e testes unitários não mudam.

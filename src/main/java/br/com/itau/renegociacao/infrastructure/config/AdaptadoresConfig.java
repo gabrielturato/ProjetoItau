@@ -11,7 +11,6 @@ import br.com.itau.renegociacao.adapter.out.tokenizacao.TokenizacaoHttpAdapter;
 import br.com.itau.renegociacao.application.calculadora.CalculadoraComCache;
 import br.com.itau.renegociacao.application.calculadora.CalculadoraRoteadaPorFeatureFlag;
 import br.com.itau.renegociacao.application.calculadora.ChaveSimulacao;
-import br.com.itau.renegociacao.application.contrato.ConsultaContratoComCache;
 import br.com.itau.renegociacao.application.port.out.CachePort;
 import br.com.itau.renegociacao.application.port.out.CalculadoraPort;
 import br.com.itau.renegociacao.application.port.out.ConsultaContratoPort;
@@ -48,7 +47,7 @@ class AdaptadoresConfig {
 
     @Bean
     ConsultaContratoPort consultaContrato() {
-        return new ConsultaContratoComCache(new ContratoHttpAdapter(restClient("contratos")), cache("contratos"));
+        return new ContratoHttpAdapter(restClient("contratos"));
     }
 
     @Bean
