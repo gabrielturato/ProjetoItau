@@ -5,7 +5,6 @@ import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.ToString;
 
-import java.math.BigDecimal;
 import java.util.List;
 import java.util.Objects;
 
@@ -31,18 +30,5 @@ public final class SolicitacaoCalculo {
         this.clienteId = Objects.requireNonNull(clienteId, "clienteId");
         this.contratos = List.copyOf(contratos);
         this.politica = Objects.requireNonNull(politica, "politica");
-    }
-
-    public BigDecimal valorTotalAtrasado() {
-        return contratos.stream()
-                .map(Contrato::getValorAtrasado)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-    }
-
-    public int maiorDiasAtraso() {
-        return contratos.stream()
-                .mapToInt(Contrato::getDiasAtraso)
-                .max()
-                .orElse(0);
     }
 }
