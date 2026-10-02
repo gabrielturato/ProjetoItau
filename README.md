@@ -161,10 +161,15 @@ Domínio, casos de uso e testes unitários não mudam.
 
 ## Próximos passos sugeridos
 
-- Resiliência nas integrações (Resilience4j: circuit breaker, retry, e fallback da modernizada para o mainframe).
-- Shadow traffic: chamar as duas calculadoras e comparar os resultados antes de virar a flag.
-- Cache distribuído (Redis) quando houver mais de uma instância; a `ChaveSimulacao` já é uma string canônica.
-- Observabilidade: métricas de hit ratio dos caches e de uso por motor de cálculo (Micrometer).
-- Segurança: autenticação com tokens JWT emitidos pelo gateway de canal, validados pela aplicação como
-  OAuth2 Resource Server (Spring Security: assinatura via JWKS, emissor, audiência e expiração).
-  Escopos separam quem pode simular de quem pode operar `/v1/admin/feature-flags`.
+Em ordem de prioridade:
+
+1. Banco de dados (PostgreSQL) para salvar as simulações: um decorator `CalculadoraComRegistro` sobre a
+   `CalculadoraPort` grava cada cálculo feito pelo mainframe ou pela modernizada, com o `ClienteId` tokenizado
+   (nunca o CNPJ), via uma nova porta de saída e um adapter JDBC. O núcleo não muda.
+2. Segurança: autenticação com tokens JWT emitidos pelo gateway de canal, validados pela aplicação como
+   OAuth2 Resource Server (Spring Security: assinatura via JWKS, emissor, audiência e expiração).
+   Escopos separam quem pode simular de quem pode operar `/v1/admin/feature-flags`.
+3. Observabilidade: métricas de hit ratio dos caches e de uso por motor de cálculo (Micrometer).
+4. Cache distribuído (Redis) quando houver mais de uma instância; a `ChaveSimulacao` já é uma string canônica.
+5. Shadow traffic: chamar as duas calculadoras e comparar os resultados antes de virar a flag.
+6. Resiliência nas integrações (Resilience4j: circuit breaker, retry, e fallback da modernizada para o mainframe).
