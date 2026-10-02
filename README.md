@@ -81,6 +81,11 @@ sequenceDiagram
 
 ## Arquitetura
 
+![Arquitetura hexagonal: canal, adapters de entrada, portas, casos de uso, decorators da calculadora, domínio, adapters de saída e serviços externos](docs/arquitetura.svg)
+
+As portas ficam na borda do hexágono: o núcleo conhece só essas interfaces, e cada adapter se encaixa em uma
+delas. Quem liga cada porta à sua implementação é `infrastructure.config`.
+
 ```
 domain/          Entidades, objetos de valor e invariantes. Java puro.
 application/     Casos de uso, portas (in/out) e decorators de política (cache, roteamento).
