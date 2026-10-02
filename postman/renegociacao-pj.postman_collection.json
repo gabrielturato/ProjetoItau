@@ -1,0 +1,588 @@
+{
+  "info": {
+    "name": "Renegociação PJ",
+    "description": "Endpoints da API de renegociação PJ, organizados por calculadora.\n\nRode a aplicação com `./mvnw spring-boot:run` (porta 8080). Os serviços externos são simulados pela própria aplicação (`simuladores.habilitados=true`).\n\nCada pasta seleciona a sua calculadora no primeiro request, então pode ser executada sozinha (Run folder) ou a collection inteira de uma vez, na ordem:\n1. Calculadora mainframe\n2. Calculadora modernizada (inclui paridade com o mainframe; rode depois da pasta 1)\n3. Troca de calculadora (o cache de uma não é reaproveitado pela outra)\n4. Cenários de erro\n\nCache: a chave do cache de simulações inclui o motor ativo. Repetir a mesma simulação na mesma calculadora vem do cache; trocar de calculadora calcula de novo; voltar para a anterior reaproveita o cache dela.\n\nDados de teste:\n- CNPJs válidos: `11.222.333/0001-81` (numérico) e `12.ABC.345/01DE-35` (alfanumérico)\n- Qualquer número de contrato funciona, exceto os que começam com `999` (contrato inexistente)\n- Atraso ≤ 30 dias → política de 6 parcelas; acima disso → 12 parcelas\n- Valor total > 150.000,00 → SAC; caso contrário → PRICE",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "cnpj", "value": "11.222.333/0001-81" },
+    { "key": "cnpjOutroCliente", "value": "12.ABC.345/01DE-35" },
+    { "key": "idJornadaMainframe", "value": "" },
+    { "key": "idJornadaModernizada", "value": "" },
+    { "key": "simulacaoMainframe", "value": "" },
+    { "key": "simulacaoModernizada", "value": "" },
+    { "key": "simulacaoTroca", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Calculadora mainframe",
+      "item": [
+        {
+          "name": "Selecionar calculadora mainframe",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('204 No Content', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/v1/admin/feature-flags/calculadora-modernizada",
+            "body": { "mode": "raw", "raw": "{\n  \"habilitada\": false\n}" },
+            "description": "Desliga a flag `calculadora-modernizada`: as simulações passam pela calculadora legada do mainframe."
+          }
+        },
+        {
+          "name": "Conferir feature flags",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Modernizada desligada', () => pm.expect(pm.response.json()['calculadora-modernizada']).to.eql(false));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/v1/admin/feature-flags"
+          }
+        },
+        {
+          "name": "Simular nova renegociação (mainframe)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const corpo = pm.response.json();",
+                  "pm.test('Jornada simulada', () => pm.expect(corpo.status).to.eql('SIMULADA'));",
+                  "pm.test('Calculada pelo mainframe', () => pm.expect(corpo.simulacao.motorCalculo).to.eql('MAINFRAME'));",
+                  "pm.test('Custódia F5', () => pm.expect(corpo.simulacao.custodia).to.eql('F5'));",
+                  "pm.test('Um plano por parcela permitida', () => pm.expect(corpo.simulacao.planos.length).to.eql(corpo.politica.quantidadeMaximaParcelas));",
+                  "pm.test('CNPJ não aparece na resposta', () => pm.expect(pm.response.text()).to.not.include('11222333000181'));",
+                  "pm.collectionVariables.set('idJornadaMainframe', corpo.idJornada);",
+                  "pm.collectionVariables.set('simulacaoMainframe', JSON.stringify(corpo.simulacao));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/v1/renegociacoes/simulacoes",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cnpj\": \"{{cnpj}}\",\n  \"contratos\": [\n    { \"numeroContrato\": \"1001\", \"codigoProduto\": \"PJ01\" },\n    { \"numeroContrato\": \"1002\", \"codigoProduto\": \"PJ01\" }\n  ]\n}"
+            },
+            "description": "Cria uma jornada calculada pelo mainframe. O `idJornada` e a simulação são salvos nas variáveis `idJornadaMainframe` e `simulacaoMainframe`."
+          }
+        },
+        {
+          "name": "Repetir simulação (cache do mainframe)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const corpo = pm.response.json();",
+                  "pm.test('Nova jornada', () => pm.expect(corpo.idJornada).to.not.eql(pm.collectionVariables.get('idJornadaMainframe')));",
+                  "pm.test('Mesma simulação do mainframe (cache)', () => pm.expect(corpo.simulacao).to.eql(JSON.parse(pm.collectionVariables.get('simulacaoMainframe'))));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/v1/renegociacoes/simulacoes",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cnpj\": \"{{cnpj}}\",\n  \"contratos\": [\n    { \"numeroContrato\": \"1002\", \"codigoProduto\": \"PJ01\" },\n    { \"numeroContrato\": \"1001\", \"codigoProduto\": \"PJ01\" }\n  ]\n}"
+            },
+            "description": "Mesmo cliente e mesmos contratos (em outra ordem) com o mainframe ativo: a simulação vem do cache, mas uma nova jornada é criada."
+          }
+        },
+        {
+          "name": "Simular novamente na mesma jornada (mainframe)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const corpo = pm.response.json();",
+                  "pm.test('Mantém o id da jornada', () => pm.expect(corpo.idJornada).to.eql(pm.collectionVariables.get('idJornadaMainframe')));",
+                  "pm.test('Calculada pelo mainframe', () => pm.expect(corpo.simulacao.motorCalculo).to.eql('MAINFRAME'));",
+                  "pm.test('Contratos substituídos', () => pm.expect(corpo.contratos.map(c => c.numeroContrato)).to.have.members(['1001', '1003']));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/v1/renegociacoes/jornadas/{{idJornadaMainframe}}/simulacoes",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cnpj\": \"{{cnpj}}\",\n  \"contratos\": [\n    { \"numeroContrato\": \"1001\", \"codigoProduto\": \"PJ01\" },\n    { \"numeroContrato\": \"1003\", \"codigoProduto\": \"PJ01\" }\n  ]\n}"
+            },
+            "description": "Refaz a simulação com outro conjunto de contratos, mantendo o mesmo `idJornada`."
+          }
+        },
+        {
+          "name": "Consultar jornada (mainframe)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const corpo = pm.response.json();",
+                  "pm.test('Mesma jornada', () => pm.expect(corpo.idJornada).to.eql(pm.collectionVariables.get('idJornadaMainframe')));",
+                  "pm.test('Simulação salva é do mainframe', () => pm.expect(corpo.simulacao.motorCalculo).to.eql('MAINFRAME'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/v1/renegociacoes/jornadas/{{idJornadaMainframe}}",
+            "description": "Retorna a jornada salva (contratos, política e simulação)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Calculadora modernizada",
+      "item": [
+        {
+          "name": "Selecionar calculadora modernizada",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('204 No Content', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/v1/admin/feature-flags/calculadora-modernizada",
+            "body": { "mode": "raw", "raw": "{\n  \"habilitada\": true\n}" },
+            "description": "Liga a flag `calculadora-modernizada`: as simulações passam pela calculadora modernizada."
+          }
+        },
+        {
+          "name": "Conferir feature flags",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Modernizada ligada', () => pm.expect(pm.response.json()['calculadora-modernizada']).to.eql(true));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/v1/admin/feature-flags"
+          }
+        },
+        {
+          "name": "Simular nova renegociação (modernizada)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const corpo = pm.response.json();",
+                  "pm.test('Jornada simulada', () => pm.expect(corpo.status).to.eql('SIMULADA'));",
+                  "pm.test('Calculada pela modernizada (não veio do cache do mainframe)', () => pm.expect(corpo.simulacao.motorCalculo).to.eql('MODERNIZADA'));",
+                  "pm.test('Custódia SF', () => pm.expect(corpo.simulacao.custodia).to.eql('SF'));",
+                  "pm.test('Um plano por parcela permitida', () => pm.expect(corpo.simulacao.planos.length).to.eql(corpo.politica.quantidadeMaximaParcelas));",
+                  "const mainframe = pm.collectionVariables.get('simulacaoMainframe');",
+                  "if (mainframe) {",
+                  "    pm.test('Paridade de planos com o mainframe', () => pm.expect(corpo.simulacao.planos).to.eql(JSON.parse(mainframe).planos));",
+                  "}",
+                  "pm.collectionVariables.set('idJornadaModernizada', corpo.idJornada);",
+                  "pm.collectionVariables.set('simulacaoModernizada', JSON.stringify(corpo.simulacao));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/v1/renegociacoes/simulacoes",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cnpj\": \"{{cnpj}}\",\n  \"contratos\": [\n    { \"numeroContrato\": \"1001\", \"codigoProduto\": \"PJ01\" },\n    { \"numeroContrato\": \"1002\", \"codigoProduto\": \"PJ01\" }\n  ]\n}"
+            },
+            "description": "Mesmo cliente e mesmos contratos da pasta 1, agora com a modernizada: é calculada de novo (o cache do mainframe não é reaproveitado). Se a pasta 1 já rodou, também confere a paridade dos planos."
+          }
+        },
+        {
+          "name": "Repetir simulação (cache da modernizada)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const corpo = pm.response.json();",
+                  "pm.test('Nova jornada', () => pm.expect(corpo.idJornada).to.not.eql(pm.collectionVariables.get('idJornadaModernizada')));",
+                  "pm.test('Mesma simulação da modernizada (cache)', () => pm.expect(corpo.simulacao).to.eql(JSON.parse(pm.collectionVariables.get('simulacaoModernizada'))));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/v1/renegociacoes/simulacoes",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cnpj\": \"{{cnpj}}\",\n  \"contratos\": [\n    { \"numeroContrato\": \"1002\", \"codigoProduto\": \"PJ01\" },\n    { \"numeroContrato\": \"1001\", \"codigoProduto\": \"PJ01\" }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Simular novamente na mesma jornada (modernizada)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const corpo = pm.response.json();",
+                  "pm.test('Mantém o id da jornada', () => pm.expect(corpo.idJornada).to.eql(pm.collectionVariables.get('idJornadaModernizada')));",
+                  "pm.test('Calculada pela modernizada', () => pm.expect(corpo.simulacao.motorCalculo).to.eql('MODERNIZADA'));",
+                  "pm.test('Contratos substituídos', () => pm.expect(corpo.contratos.map(c => c.numeroContrato)).to.have.members(['1001', '1003']));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/v1/renegociacoes/jornadas/{{idJornadaModernizada}}/simulacoes",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cnpj\": \"{{cnpj}}\",\n  \"contratos\": [\n    { \"numeroContrato\": \"1001\", \"codigoProduto\": \"PJ01\" },\n    { \"numeroContrato\": \"1003\", \"codigoProduto\": \"PJ01\" }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Consultar jornada (modernizada)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const corpo = pm.response.json();",
+                  "pm.test('Mesma jornada', () => pm.expect(corpo.idJornada).to.eql(pm.collectionVariables.get('idJornadaModernizada')));",
+                  "pm.test('Simulação salva é da modernizada', () => pm.expect(corpo.simulacao.motorCalculo).to.eql('MODERNIZADA'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/v1/renegociacoes/jornadas/{{idJornadaModernizada}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Troca de calculadora (sem reaproveitar cache)",
+      "description": "Mesma simulação, mesmo cliente, alternando a calculadora. Cada troca calcula pela calculadora ativa; voltar para a anterior reaproveita o cache dela.",
+      "item": [
+        {
+          "name": "Selecionar mainframe",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('204 No Content', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/v1/admin/feature-flags/calculadora-modernizada",
+            "body": { "mode": "raw", "raw": "{\n  \"habilitada\": false\n}" }
+          }
+        },
+        {
+          "name": "Simular no mainframe",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const corpo = pm.response.json();",
+                  "pm.test('Calculada pelo mainframe', () => pm.expect(corpo.simulacao.motorCalculo).to.eql('MAINFRAME'));",
+                  "pm.test('Custódia F5', () => pm.expect(corpo.simulacao.custodia).to.eql('F5'));",
+                  "pm.collectionVariables.set('simulacaoTroca', JSON.stringify(corpo.simulacao));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/v1/renegociacoes/simulacoes",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cnpj\": \"{{cnpj}}\",\n  \"contratos\": [\n    { \"numeroContrato\": \"3001\", \"codigoProduto\": \"PJ01\" }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Trocar para modernizada",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('204 No Content', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/v1/admin/feature-flags/calculadora-modernizada",
+            "body": { "mode": "raw", "raw": "{\n  \"habilitada\": true\n}" }
+          }
+        },
+        {
+          "name": "Mesma simulação na modernizada (não usa o cache do mainframe)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const corpo = pm.response.json();",
+                  "pm.test('Calculada pela modernizada', () => pm.expect(corpo.simulacao.motorCalculo).to.eql('MODERNIZADA'));",
+                  "pm.test('Custódia SF', () => pm.expect(corpo.simulacao.custodia).to.eql('SF'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/v1/renegociacoes/simulacoes",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cnpj\": \"{{cnpj}}\",\n  \"contratos\": [\n    { \"numeroContrato\": \"3001\", \"codigoProduto\": \"PJ01\" }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Voltar para mainframe (rollback)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('204 No Content', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/v1/admin/feature-flags/calculadora-modernizada",
+            "body": { "mode": "raw", "raw": "{\n  \"habilitada\": false\n}" }
+          }
+        },
+        {
+          "name": "Mesma simulação de volta no mainframe (cache do mainframe)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const corpo = pm.response.json();",
+                  "pm.test('Calculada pelo mainframe (não usa o cache da modernizada)', () => pm.expect(corpo.simulacao.motorCalculo).to.eql('MAINFRAME'));",
+                  "pm.test('Custódia F5', () => pm.expect(corpo.simulacao.custodia).to.eql('F5'));",
+                  "pm.test('Igual à primeira simulação no mainframe', () => pm.expect(corpo.simulacao).to.eql(JSON.parse(pm.collectionVariables.get('simulacaoTroca'))));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/v1/renegociacoes/simulacoes",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cnpj\": \"{{cnpj}}\",\n  \"contratos\": [\n    { \"numeroContrato\": \"3001\", \"codigoProduto\": \"PJ01\" }\n  ]\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Cenários de erro",
+      "item": [
+        {
+          "name": "CNPJ inválido → 422",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('422 Unprocessable Entity', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/v1/renegociacoes/simulacoes",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cnpj\": \"11.222.333/0001-82\",\n  \"contratos\": [\n    { \"numeroContrato\": \"1001\", \"codigoProduto\": \"PJ01\" }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Contrato inexistente → 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404 Not Found', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/v1/renegociacoes/simulacoes",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cnpj\": \"{{cnpj}}\",\n  \"contratos\": [\n    { \"numeroContrato\": \"9990001\", \"codigoProduto\": \"PJ01\" }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Sem contratos → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 Bad Request', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/v1/renegociacoes/simulacoes",
+            "body": { "mode": "raw", "raw": "{\n  \"cnpj\": \"{{cnpj}}\",\n  \"contratos\": []\n}" }
+          }
+        },
+        {
+          "name": "Feature flag inexistente → 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404 Not Found', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/v1/admin/feature-flags/flag-inexistente",
+            "body": { "mode": "raw", "raw": "{\n  \"habilitada\": true\n}" }
+          }
+        },
+        {
+          "name": "Jornada de outro cliente → 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404 Not Found', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/v1/renegociacoes/jornadas/{{idJornadaMainframe}}/simulacoes",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cnpj\": \"{{cnpjOutroCliente}}\",\n  \"contratos\": [\n    { \"numeroContrato\": \"1001\", \"codigoProduto\": \"PJ01\" }\n  ]\n}"
+            },
+            "description": "Outro CNPJ tentando simular na jornada criada na pasta 1. Retorna 404 para não revelar que a jornada existe."
+          }
+        }
+      ]
+    }
+  ]
+}
