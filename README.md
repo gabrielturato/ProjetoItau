@@ -153,6 +153,14 @@ Domínio, casos de uso e testes unitários não mudam.
   cada etapa devolve uma nova instância, o que a torna segura para cache.
 - **Política × feature flag:** a política de negócio decide o *tipo de cálculo* (PRICE/SAC) e o máximo de
   parcelas (até 12). A feature flag decide o *motor* (mainframe ou modernizada).
+- **Chave do cache de simulações:** cada contrato entra na chave só por número e produto, sem valor atrasado,
+  dias de atraso ou origem. Esses dados mudam de um dia para o outro, não dentro dos 30 minutos de TTL.
+  Se o valor de um contrato mudar nesse intervalo, a mesma simulação pode vir do cache com os valores anteriores
+  até expirar.
+- **Flag e chave lidas em dois momentos:** o cache monta a chave com o motor ativo e, logo depois, o roteador
+  lê a flag de novo para decidir a calculadora. Se a flag virar exatamente entre as duas leituras, um resultado
+  pode ficar guardado sob o motor errado até o TTL expirar. A janela é de microssegundos e só existe durante a
+  troca; fechá-la exigiria decidir o motor uma única vez por chamada e repassá-lo ao roteador.
 - **Custódia:** nos simuladores, o mainframe retorna `F5` e a modernizada retorna `SF`.
 - **Caffeine:** `buscarOuCarregar` não usa `cache.get(k, loader)` de propósito. O loader rodaria dentro de um
   lock durante a chamada HTTP, o que com virtual threads (Java 21) prende a carrier thread.
