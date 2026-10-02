@@ -1,0 +1,48 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: renegociacao-pj
+  threads:
+    virtual:
+      enabled: true
+
+renegociacao:
+  feature-flags:
+    # true = calculadora modernizada | false = calculadora legada do mainframe
+    calculadora-modernizada: false
+
+  caches:
+    contratos:
+      ttl: 30m
+      tamanho-maximo: 10000
+    jornadas:
+      ttl: 30m
+      tamanho-maximo: 10000
+    simulacoes:
+      ttl: 30m
+      tamanho-maximo: 10000
+    calculadora-modernizada:
+      ttl: 30m
+      tamanho-maximo: 10000
+
+  integracoes:
+    tokenizacao:
+      url: http://localhost:${server.port}/simuladores/tokenizacao
+      timeout: 2s
+    contratos:
+      url: http://localhost:${server.port}/simuladores/contratos
+      timeout: 2s
+    regras-negocio:
+      url: http://localhost:${server.port}/simuladores/regras-negocio
+      timeout: 2s
+    calculadora-mainframe:
+      url: http://localhost:${server.port}/simuladores/calculadora-mainframe
+      timeout: 5s
+    calculadora-modernizada:
+      url: http://localhost:${server.port}/simuladores/calculadora-modernizada
+      timeout: 3s
+
+simuladores:
+  habilitados: true
