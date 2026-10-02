@@ -10,7 +10,11 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 
+import java.io.IOException;
+import java.net.ServerSocket;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -19,8 +23,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Fluxo completo, passando por HTTP real até os simuladores dos serviços externos.
+ * <p>
+ * A porta é escolhida livre antes do contexto subir, e não com RANDOM_PORT, porque as URLs dos
+ * simuladores são montadas com {@code ${server.port}} na criação dos RestClients, antes do Tomcat iniciar.
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.DEFINED_PORT, properties = "server.port=18089")
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.DEFINED_PORT)
 class RenegociacaoIntegrationTest {
 
     private static final String CNPJ_A = "11.222.333/0001-81";
@@ -28,6 +35,14 @@ class RenegociacaoIntegrationTest {
 
     @Autowired
     private TestRestTemplate http;
+
+    @DynamicPropertySource
+    static void portaLivre(DynamicPropertyRegistry registry) throws IOException {
+        try (ServerSocket socket = new ServerSocket(0)) {
+            int porta = socket.getLocalPort();
+            registry.add("server.port", () -> porta);
+        }
+    }
 
     @BeforeEach
     void desligarCalculadoraModernizada() {
