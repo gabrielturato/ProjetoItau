@@ -34,10 +34,6 @@ public final class ChaveSimulacao {
         return new ChaveSimulacao(motor + "|" + solicitacao.getClienteId().getValor() + "|" + parametros(solicitacao));
     }
 
-    public static ChaveSimulacao porParametros(SolicitacaoCalculo solicitacao) {
-        return new ChaveSimulacao(parametros(solicitacao));
-    }
-
     private static String parametros(SolicitacaoCalculo solicitacao) {
         String contratos = solicitacao.getContratos().stream()
                 .sorted(Comparator.comparing((Contrato c) -> c.getId().getNumeroContrato())

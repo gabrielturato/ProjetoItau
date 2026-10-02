@@ -63,16 +63,13 @@ class AdaptadoresConfig {
     /**
      * simulacoes (por cliente + motor ativo)
      *   -> roteador por feature flag
-     *        -> modernizada: cache por parâmetros -> HTTP
+     *        -> modernizada HTTP
      *        -> legada: mainframe HTTP
      */
     @Bean
     CalculadoraPort calculadora(FeatureFlagPort featureFlags) {
         CalculadoraPort legada = new CalculadoraMainframeHttpAdapter(restClient("calculadora-mainframe"));
-        CalculadoraPort modernizada = new CalculadoraComCache(
-                new CalculadoraModernizadaHttpAdapter(restClient("calculadora-modernizada")),
-                cache("calculadora-modernizada"),
-                ChaveSimulacao::porParametros);
+        CalculadoraPort modernizada = new CalculadoraModernizadaHttpAdapter(restClient("calculadora-modernizada"));
         CalculadoraRoteadaPorFeatureFlag roteada = new CalculadoraRoteadaPorFeatureFlag(modernizada, legada, featureFlags);
         return new CalculadoraComCache(roteada, cache("simulacoes"),
                 solicitacao -> ChaveSimulacao.porCliente(solicitacao, roteada.motorAtivo()));

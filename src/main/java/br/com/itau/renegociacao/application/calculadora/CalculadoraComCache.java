@@ -9,8 +9,7 @@ import java.util.function.Function;
 
 /**
  * Decorator: evita chamar a calculadora envolvida quando a simulação já está em cache.
- * A mesma classe serve tanto para o cache por cliente quanto para o da calculadora modernizada;
- * o que muda é a estratégia de chave.
+ * A chave é calculada por uma estratégia externa porque depende do motor ativo, que só o roteador conhece.
  */
 public final class CalculadoraComCache implements CalculadoraPort {
 

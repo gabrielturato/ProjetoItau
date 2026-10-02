@@ -101,8 +101,7 @@ A calculadora é montada por composição de decorators sobre uma única interfa
 ```
 CalculadoraComCache (por cliente + motor ativo)        ← 1º: evita recalcular a mesma simulação do cliente
  └─ CalculadoraRoteadaPorFeatureFlag                   ← 2º: Strangler Fig, flag "calculadora-modernizada"
-     ├─ CalculadoraComCache (por parâmetros)           ←     cache próprio da modernizada, compartilhado entre clientes
-     │   └─ CalculadoraModernizadaHttpAdapter
+     ├─ CalculadoraModernizadaHttpAdapter
      └─ CalculadoraMainframeHttpAdapter + SimulacaoMainframeMapper (Anti-Corruption Layer)
 ```
 
@@ -110,8 +109,6 @@ CalculadoraComCache (por cliente + motor ativo)        ← 1º: evita recalcular
   Ela é canônica, ou seja, não depende da ordem dos contratos.
   A chave também inclui o motor ativo na flag, então trocar de calculadora não reaproveita o cache da outra
   (e voltar para a anterior reaproveita o cache dela).
-- **Cache da modernizada por parâmetros:** a simulação não carrega dados do cliente, então
-  o mesmo cálculo é reaproveitado entre clientes diferentes.
 - **Feature flag:** a decisão é tomada a cada chamada, então dá para trocar em produção e voltar atrás
   na hora, sem deploy. O provedor (`FeatureFlagPort`) pode virar AWS AppConfig, LaunchDarkly ou Unleash.
 - **ACL do mainframe:** o layout do copybook (nomes de campos COBOL, código de retorno,

@@ -49,16 +49,6 @@ class CalculadoraComCacheTest {
     }
 
     @Test
-    void chavePorParametrosReaproveitaEntreClientes() {
-        CalculadoraPort calculadora = new CalculadoraComCache(calculadoraContada, new CacheEmMemoria<>(), ChaveSimulacao::porParametros);
-
-        calculadora.calcular(solicitacao(clienteId(), contrato("1")));
-        calculadora.calcular(solicitacao(clienteId(), contrato("1")));
-
-        assertThat(chamadas).hasValue(1);
-    }
-
-    @Test
     void chavePorClienteSeparaMotoresDiferentes() {
         SolicitacaoCalculo solicitacao = solicitacao(clienteId(), contrato("1"));
 

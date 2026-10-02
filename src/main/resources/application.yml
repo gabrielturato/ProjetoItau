@@ -20,9 +20,6 @@ renegociacao:
     simulacoes:
       ttl: 30m
       tamanho-maximo: 10000
-    calculadora-modernizada:
-      ttl: 30m
-      tamanho-maximo: 10000
 
   integracoes:
     tokenizacao:
