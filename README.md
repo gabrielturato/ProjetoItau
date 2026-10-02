@@ -3,6 +3,10 @@
 Projeto para desafio técnico do Itaú: simulação de renegociação de contratos PJ em atraso, com foco em
 **Arquitetura Limpa**, **SOLID** e em mecanismos para **desligar gradualmente a calculadora do mainframe**.
 
+> **Recorte implementado:** simulação de renegociação, da **Onda 1** da modernização.
+>
+> **Objetivo da Onda 1:** remover a dependência do mainframe para as consultas mais frequentes na jornada.
+
 **Stack:** Java 21 · Spring Boot 3.4 · Maven · Caffeine · JUnit 5 · ArchUnit
 
 ## Como executar
